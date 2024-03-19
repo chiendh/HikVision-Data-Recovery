@@ -36,10 +36,10 @@ def create_output_directory(directory):
         os.makedirs(directory)
         logging.info("Output directory created at %s", directory)
 
-def list_physical_drives():
+def list_physical_drives_detail():
     try:
-        # Thực hiện lệnh wmic để lấy thông tin về các ổ đĩa vật lý
-        result = subprocess.check_output(['wmic', 'diskdrive', 'get', 'model,name,size'], text=True)
+        # Sử dụng lệnh wmic để lấy DeviceID của các ổ đĩa vật lý
+        result = subprocess.check_output(['wmic', 'diskdrive', 'get', 'model,DeviceID,size'], text=True)
         
         # Tách kết quả thành các dòng và loại bỏ dòng đầu tiên (tiêu đề)
         lines = result.strip().split('\n')[1:]
@@ -48,7 +48,27 @@ def list_physical_drives():
         drives = []
         for line in lines:
             if line.strip():  # Bỏ qua các dòng trống
-                drives.append(line.strip())
+                drive_path = line.strip()
+                drives.append(drive_path)
+        return drives
+    except subprocess.CalledProcessError as e:
+        logging.error("Failed to list physical drives: %s", e)
+        return []
+
+def list_physical_drives():
+    try:
+        # Sử dụng lệnh wmic để lấy DeviceID của các ổ đĩa vật lý
+        result = subprocess.check_output(['wmic', 'diskdrive', 'get', 'DeviceID'], text=True)
+        
+        # Tách kết quả thành các dòng và loại bỏ dòng đầu tiên (tiêu đề)
+        lines = result.strip().split('\n')[1:]
+        
+        # Xử lý mỗi dòng để tạo một chuỗi mô tả cho mỗi ổ đĩa
+        drives = []
+        for line in lines:
+            if line.strip():  # Bỏ qua các dòng trống
+                drive_path = line.strip()
+                drives.append(drive_path)
         return drives
     except subprocess.CalledProcessError as e:
         logging.error("Failed to list physical drives: %s", e)
@@ -57,14 +77,21 @@ def list_physical_drives():
 def process_files(input_file, output_dir, mode):
     try:
         parser = HikParser(input_file)
+        logging.error("input_file: %s", input_file)
         parser.read_master_sector()
+        logging.error("===================A")
         parser.read_hikbtree()
+        logging.error("===================B")
         parser.read_page_list()
+        logging.error("===================C")
         parser.read_page_entries()
+        logging.error("===================D")
         parser.print_hikpagelist(output_dir)
         parser.print_hikpages(output_dir)
         parser.print_master_sector(output_dir)
         parser.print_hikbtree(output_dir)
+        logging.error("===================")
+
 
         if mode == "e":
             required_space = parser.get_total_blocks() * parser.master_sector.data_block_size
@@ -75,6 +102,9 @@ def process_files(input_file, output_dir, mode):
     except Exception as e:
         logging.error("Error processing files: %s", e)
         messagebox.showerror("Error", f"Error processing files: {e}")
+    # finally:
+    #     if parser is not None:
+    #         parser.close()
 
 class Application(tk.Tk):
     def __init__(self):
@@ -82,12 +112,14 @@ class Application(tk.Tk):
         setup_logging()
 
         self.title("HIKVISION Video Data Recovery")
-        self.geometry("500x250")
+        self.geometry("500x500")
 
         self.label_drive = ttk.Label(self, text="Select a Physical Drive:")
         self.label_drive.pack(pady=10)
 
-        self.combobox = ttk.Combobox(self, values=list_physical_drives())
+        self.combobox = ttk.Combobox(self, values=list_physical_drives_detail(), width=80)
+        self.combobox.pack(pady=10)
+        self.combobox = ttk.Combobox(self, values=list_physical_drives(), width=50)
         self.combobox.pack()
 
         self.label_output_dir = ttk.Label(self, text="Select Output Directory:")
@@ -126,7 +158,7 @@ class Application(tk.Tk):
         
         # Cần thêm logic thực tế để xử lý ổ đĩa vật lý tại đây, ví dụ:
         process_files(selected_drive, output_dir, "e")
-        messagebox.showinfo("Info", "Processing started. This may take some time.")
+        # messagebox.showinfo("Info", "Processing started. This may take some time.")
 
 if __name__ == "__main__":
     app = Application()
